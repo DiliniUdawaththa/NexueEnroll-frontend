@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import Sidebar from './Sidebar';
+import Notification from './Notification';
 
 const API_BASE_STUDENT = "/students";
 const API_BASE_COURSE = "/courses";
@@ -141,64 +143,84 @@ const Dashboard = () => {
         } catch (e) { console.error(e); }
     };
 
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
+    const [showCourseForm, setShowCourseForm] = useState(false);
+    const [editingCourse, setEditingCourse] = useState(null);
+    const [courseForm, setCourseForm] = useState({
+        courseCode: '',
+        courseName: '',
+        description: '',
+        department: '',
+        instructorName: '',
+        capacity: 30,
+        currentEnrollment: 0,
+        dayOfWeek: 'MONDAY',
+        startTime: '09:00',
+        endTime: '11:00'
+    });
+
+    const handleCourseFormChange = (e) => {
+        const { name, value } = e.target;
+        setCourseForm(prev => ({ ...prev, [name]: value }));
     };
 
-    const Sidebar = () => (
-        <div className="w-64 glass h-screen fixed left-0 top-0 p-6 flex flex-col gap-8 shadow-2xl border-r border-slate-200/50">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">NexusEnroll</h2>
-            <div className="flex flex-col gap-2">
-                {hasRole('ROLE_STUDENT') && (
-                    <button onClick={() => setPersona('student')} className={`p-3 rounded-xl flex items-center gap-2 transition-all font-medium ${persona === 'student' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'hover:bg-slate-100 text-slate-600'}`}>🎓 Student Portal</button>
-                )}
-                {hasRole('ROLE_FACULTY') && (
-                    <button onClick={() => setPersona('faculty')} className={`p-3 rounded-xl flex items-center gap-2 transition-all font-medium ${persona === 'faculty' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'hover:bg-slate-100 text-slate-600'}`}>🧑‍🏫 Faculty Portal</button>
-                )}
-                {hasRole('ROLE_ADMIN') && (
-                    <button onClick={() => { setPersona('admin'); fetchReports(); }} className={`p-3 rounded-xl flex items-center gap-2 transition-all font-medium ${persona === 'admin' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'hover:bg-slate-100 text-slate-600'}`}>⚙️ Admin Panel</button>
-                )}
-            </div>
-            <div className="mt-auto border-t border-slate-100 pt-6 space-y-4">
-                <div className="px-2">
-                    <p className="text-[10px] uppercase tracking-widest font-black text-slate-400 mb-2">Connected as</p>
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">{user?.username?.[0].toUpperCase()}</div>
-                        <div className="overflow-hidden">
-                            <p className="text-sm font-bold text-slate-900 truncate">{user?.username}</p>
-                            <p className="text-[10px] text-slate-500 truncate">{user?.roles?.join(', ')}</p>
-                        </div>
-                    </div>
-                </div>
-                {persona === 'student' && students.length > 0 && hasRole('ROLE_ADMIN') && (
-                    <div className="px-2">
-                        <p className="text-[10px] uppercase tracking-widest font-black text-slate-400 mb-2">Emulate Student</p>
-                        <select className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={selectedStudent?.studentId} onChange={(e) => setSelectedStudent(students.find(x => x.studentId === e.target.value))}>
-                            {students.map(s => <option key={s.studentId} value={s.studentId}>{s.firstName} {s.lastName}</option>)}
-                        </select>
-                    </div>
-                )}
-                <button onClick={handleLogout} className="w-full p-3 rounded-xl flex items-center gap-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-all text-sm font-medium">🚪 Sign Out</button>
-            </div>
-        </div>
-    );
+    const handleSaveCourse = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingCourse) {
+                await api.put(`${API_BASE_COURSE}/${editingCourse.id}`, courseForm);
+                setMessage({ type: 'success', text: `Updated ${courseForm.courseCode}` });
+            } else {
+                await api.post(API_BASE_COURSE, courseForm);
+                setMessage({ type: 'success', text: `Created ${courseForm.courseCode}` });
+            }
+            setShowCourseForm(false);
+            setEditingCourse(null);
+            resetCourseForm();
+            fetchCourses();
+        } catch (error) {
+            setMessage({ type: 'error', text: error.response?.data?.message || 'Action failed' });
+        }
+    };
 
-    const Notification = () => message && (
-        <div className={`fixed top-4 right-4 z-[100] p-4 rounded-xl shadow-2xl animate-in fade-in slide-in-from-right-4 border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
-            <div className="flex items-center gap-3">
-                <span>{message.text}</span>
-                <button onClick={() => setMessage(null)} className="opacity-50 hover:opacity-100 text-lg">×</button>
-            </div>
-        </div>
-    );
+    const resetCourseForm = () => {
+        setCourseForm({
+            courseCode: '',
+            courseName: '',
+            description: '',
+            department: '',
+            instructorName: '',
+            capacity: 30,
+            currentEnrollment: 0,
+            dayOfWeek: 'MONDAY',
+            startTime: '09:00',
+            endTime: '11:00'
+        });
+    };
+
+    const openEditCourse = (course) => {
+        setEditingCourse(course);
+        setCourseForm({ ...course });
+        setShowCourseForm(true);
+    };
+
+    const handleDeleteCourse = async (id) => {
+        if (window.confirm('Are you sure you want to delete this course?')) {
+            try {
+                await api.delete(`${API_BASE_COURSE}/${id}`);
+                setMessage({ type: 'success', text: 'Course deleted successfully' });
+                fetchCourses();
+            } catch (error) {
+                setMessage({ type: 'error', text: 'Failed to delete course' });
+            }
+        }
+    };
 
     if (!user) return null;
 
     return (
         <div className="min-h-screen bg-slate-50 pl-64 font-['Inter']">
             <Sidebar />
-            <Notification />
+            <Notification message={message} />
             <main className="p-10 max-w-7xl mx-auto">
                 <div className="mb-12 flex justify-between items-end">
                     <div>
@@ -338,15 +360,102 @@ const Dashboard = () => {
                             </div>
                         )}
                         {activeTab === 'course-mgmt' && (
-                            <section className="bg-white border p-10 rounded-[2.5rem]">
-                                <h2 className="text-3xl font-black mb-10">Course Editor</h2>
-                                {courses.map(c => <div key={c.courseCode} className="p-6 bg-slate-50 mb-2 rounded-3xl flex justify-between">{c.courseName} <button className="text-rose-600 font-bold">Delete</button></div>)}
+                            <section className="bg-white border p-10 rounded-[2.5rem] shadow-sm">
+                                <div className="flex justify-between items-center mb-10">
+                                    <h2 className="text-3xl font-black">Course Management</h2>
+                                    <button
+                                        onClick={() => { resetCourseForm(); setShowCourseForm(true); setEditingCourse(null); }}
+                                        className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg"
+                                    >
+                                        + Add New Course
+                                    </button>
+                                </div>
+
+                                {showCourseForm && (
+                                    <form onSubmit={handleSaveCourse} className="mb-12 p-8 bg-slate-50 border border-slate-200 rounded-[2rem] grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                                        <button type="button" onClick={() => setShowCourseForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-2xl px-2">×</button>
+                                        <h3 className="col-span-full font-black text-xl mb-4">{editingCourse ? 'Edit Course' : 'Create New Course'}</h3>
+
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Course Code</label>
+                                            <input required name="courseCode" value={courseForm.courseCode} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="CS101" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Course Name</label>
+                                            <input required name="courseName" value={courseForm.courseName} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Intro to Computer Science" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Department</label>
+                                            <input required name="department" value={courseForm.department} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Computer Science" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Instructor</label>
+                                            <input required name="instructorName" value={courseForm.instructorName} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Dr. Smith" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Capacity</label>
+                                            <input required type="number" name="capacity" value={courseForm.capacity} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Day of Week</label>
+                                            <select name="dayOfWeek" value={courseForm.dayOfWeek} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
+                                                {['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map(d => <option key={d} value={d}>{d}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Start Time</label>
+                                            <input type="time" name="startTime" value={courseForm.startTime} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">End Time</label>
+                                            <input type="time" name="endTime" value={courseForm.endTime} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                                        </div>
+                                        <div className="col-span-full flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Description</label>
+                                            <textarea name="description" value={courseForm.description} onChange={handleCourseFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]" placeholder="Course details..." />
+                                        </div>
+                                        <div className="col-span-full pt-4">
+                                            <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all font-black uppercase tracking-widest text-sm shadow-xl">
+                                                {editingCourse ? 'Save Changes' : 'Create Course'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                <div className="space-y-4">
+                                    {courses.map(c => (
+                                        <div key={c.courseCode} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl flex justify-between items-center group hover:border-blue-200 transition-all">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[10px] font-black bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{c.courseCode}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{c.department}</span>
+                                                </div>
+                                                <p className="font-black text-slate-900">{c.courseName}</p>
+                                                <p className="text-xs text-slate-500">Instructor: {c.instructorName} • Cap: {c.capacity}</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => openEditCourse(c)} className="p-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-xs hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all">Edit</button>
+                                                <button onClick={() => handleDeleteCourse(c.id)} className="p-3 bg-white border border-slate-200 text-rose-500 rounded-xl font-bold text-xs hover:bg-rose-50 hover:border-rose-200 transition-all">Delete</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </section>
                         )}
                         {activeTab === 'user-mgmt' && (
-                            <section className="bg-white border p-10 rounded-[2.5rem]">
-                                <h2 className="text-3xl font-black mb-10">Students</h2>
-                                {students.map(s => <div key={s.studentId} className="p-6 bg-slate-50 mb-2 rounded-3xl flex justify-between">{s.firstName} {s.lastName} <button className="text-rose-600 font-bold">Deactivate</button></div>)}
+                            <section className="bg-white border p-10 rounded-[2.5rem] shadow-sm">
+                                <h2 className="text-3xl font-black mb-10">Registered Students</h2>
+                                <div className="space-y-4">
+                                    {students.map(s => (
+                                        <div key={s.studentId} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl flex justify-between items-center">
+                                            <div>
+                                                <p className="font-black text-slate-900 text-lg">{s.firstName} {s.lastName}</p>
+                                                <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">ID: {s.studentId} • Major: {s.major}</p>
+                                            </div>
+                                            <button className="bg-white border border-slate-200 text-rose-600 px-4 py-2 rounded-xl font-bold text-xs hover:bg-rose-50 transition-all">Deactivate</button>
+                                        </div>
+                                    ))}
+                                </div>
                             </section>
                         )}
                     </div>

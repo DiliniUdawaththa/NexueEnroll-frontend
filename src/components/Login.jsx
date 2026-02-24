@@ -73,23 +73,23 @@ const Login = () => {
                         {loading ? 'Signing in...' : 'Sign In'}
                     </button>
 
-                    <div className="pt-4 text-center ">
-                        <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold mb-4">Demo Credentials</p>
-                        <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-400">
-                            <div className="bg-slate-700/30 p-2 rounded-lg border border-slate-700">
-                                <p className="text-white font-bold">Admin</p>
-                                <p>admin / admin123</p>
-                            </div>
-                            <div className="bg-slate-700/30 p-2 rounded-lg border border-slate-700">
-                                <p className="text-white font-bold">Student</p>
-                                <p>kasun.p / student123</p>
-                            </div>
-                            <div className="bg-slate-700/30 p-2 rounded-lg border border-slate-700">
-                                <p className="text-white font-bold">Faculty</p>
-                                <p>rohan.g / faculty123</p>
-                            </div>
-                        </div>
-                    </div>
+{/*                     <div className="pt-4 text-center "> */}
+{/*                         <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold mb-4">Demo Credentials</p> */}
+{/*                         <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-400"> */}
+{/*                             <div className="bg-slate-700/30 p-2 rounded-lg border border-slate-700"> */}
+{/*                                 <p className="text-white font-bold">Admin</p> */}
+{/*                                 <p>admin / admin123</p> */}
+{/*                             </div> */}
+{/*                             <div className="bg-slate-700/30 p-2 rounded-lg border border-slate-700"> */}
+{/*                                 <p className="text-white font-bold">Student</p> */}
+{/*                                 <p>kasun.p / student123</p> */}
+{/*                             </div> */}
+{/*                             <div className="bg-slate-700/30 p-2 rounded-lg border border-slate-700"> */}
+{/*                                 <p className="text-white font-bold">Faculty</p> */}
+{/*                                 <p>rohan.g / faculty123</p> */}
+{/*                             </div> */}
+{/*                         </div> */}
+{/*                     </div> */}
                 </form>
             </div>
         </div>
