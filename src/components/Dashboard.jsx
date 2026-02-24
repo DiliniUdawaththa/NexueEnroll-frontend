@@ -68,14 +68,22 @@ const Dashboard = () => {
 
     const fetchStudents = async () => {
         try {
-            const res = await api.get(API_BASE_STUDENT);
-            setStudents(res.data);
-            if (persona === 'student' && res.data.length > 0) {
-                if (!selectedStudent) setSelectedStudent(res.data[0]);
-            } else if (res.data.length > 0 && !selectedStudent) {
-                setSelectedStudent(res.data[0]);
+            if (persona === 'student') {
+                const res = await api.get(`${API_BASE_STUDENT}/${user.username}`);
+                setSelectedStudent(res.data);
+            } else {
+                const res = await api.get(API_BASE_STUDENT);
+                setStudents(res.data);
+                if (res.data.length > 0 && !selectedStudent) {
+                    setSelectedStudent(res.data[0]);
+                }
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            if (persona === 'student') {
+                setMessage({ type: 'error', text: 'Failed to load your student profile.' });
+            }
+        }
     };
 
     const fetchCourses = async () => {
@@ -115,7 +123,8 @@ const Dashboard = () => {
             fetchStudentData(selectedStudent.studentId);
             fetchCourses();
         } catch (e) {
-            setMessage({ type: 'error', text: e.response?.data?.message || 'Enrollment failed' });
+            const errorMsg = e.response?.data?.message || 'Enrollment failed';
+            setMessage({ type: 'error', text: errorMsg });
         }
     };
 
