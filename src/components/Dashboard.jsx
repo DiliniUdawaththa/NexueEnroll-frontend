@@ -224,6 +224,64 @@ const Dashboard = () => {
         }
     };
 
+    const [showStudentForm, setShowStudentForm] = useState(false);
+    const [studentForm, setStudentForm] = useState({
+        studentId: '',
+        password: 'student123',
+        firstName: '',
+        lastName: '',
+        email: '',
+        degreeProgram: 'Computer Science',
+        totalCredits: 0
+    });
+
+    const handleStudentFormChange = (e) => {
+        const { name, value } = e.target;
+        setStudentForm(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSaveStudent = async (e) => {
+        e.preventDefault();
+        try {
+            // 1. Create Login Credentials
+            await api.post('/auth/register', {
+                username: studentForm.studentId,
+                password: studentForm.password,
+                roles: ['ROLE_STUDENT']
+            });
+
+            // 2. Create Student Profile
+            await api.post(API_BASE_STUDENT, {
+                studentId: studentForm.studentId,
+                firstName: studentForm.firstName,
+                lastName: studentForm.lastName,
+                email: studentForm.email,
+                degreeProgram: studentForm.degreeProgram,
+                totalCredits: studentForm.totalCredits,
+                courseGrades: {}
+            });
+
+            setMessage({ type: 'success', text: `Created student ${studentForm.studentId}` });
+            setShowStudentForm(false);
+            resetStudentForm();
+            fetchStudents();
+        } catch (error) {
+            setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to create student' });
+        }
+    };
+
+    const resetStudentForm = () => {
+        setStudentForm({
+            studentId: '',
+            password: 'student123',
+            firstName: '',
+            lastName: '',
+            email: '',
+            degreeProgram: 'Computer Science',
+            totalCredits: 0
+        });
+    };
+
     if (!user) return null;
 
     return (
@@ -453,13 +511,59 @@ const Dashboard = () => {
                         )}
                         {activeTab === 'user-mgmt' && (
                             <section className="bg-white border p-10 rounded-[2.5rem] shadow-sm">
-                                <h2 className="text-3xl font-black mb-10">Registered Students</h2>
+                                <div className="flex justify-between items-center mb-10">
+                                    <h2 className="text-3xl font-black">Registered Students</h2>
+                                    <button
+                                        onClick={() => { resetStudentForm(); setShowStudentForm(true); }}
+                                        className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg"
+                                    >
+                                        + Add New Student
+                                    </button>
+                                </div>
+
+                                {showStudentForm && (
+                                    <form onSubmit={handleSaveStudent} className="mb-12 p-8 bg-slate-50 border border-slate-200 rounded-[2rem] grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                                        <button type="button" onClick={() => setShowStudentForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-2xl px-2">×</button>
+                                        <h3 className="col-span-full font-black text-xl mb-4">Create New Student</h3>
+
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Student ID (Username)</label>
+                                            <input required name="studentId" value={studentForm.studentId} onChange={handleStudentFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="udara.k" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Temp Password</label>
+                                            <input required type="password" name="password" value={studentForm.password} onChange={handleStudentFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">First Name</label>
+                                            <input required name="firstName" value={studentForm.firstName} onChange={handleStudentFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Udara" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Last Name</label>
+                                            <input required name="lastName" value={studentForm.lastName} onChange={handleStudentFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Kulathunga" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Email</label>
+                                            <input required type="email" name="email" value={studentForm.email} onChange={handleStudentFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="udara@gmail.com" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Degree Program</label>
+                                            <input required name="degreeProgram" value={studentForm.degreeProgram} onChange={handleStudentFormChange} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Software Engineering" />
+                                        </div>
+                                        <div className="col-span-full pt-4">
+                                            <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all font-black uppercase tracking-widest text-sm shadow-xl">
+                                                Create Student Account
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
                                 <div className="space-y-4">
                                     {students.map(s => (
                                         <div key={s.studentId} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl flex justify-between items-center">
                                             <div>
                                                 <p className="font-black text-slate-900 text-lg">{s.firstName} {s.lastName}</p>
-                                                <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">ID: {s.studentId} • Major: {s.major}</p>
+                                                <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">ID: {s.studentId} • Major: {s.degreeProgram}</p>
                                             </div>
                                             <button className="bg-white border border-slate-200 text-rose-600 px-4 py-2 rounded-xl font-bold text-xs hover:bg-rose-50 transition-all">Deactivate</button>
                                         </div>
