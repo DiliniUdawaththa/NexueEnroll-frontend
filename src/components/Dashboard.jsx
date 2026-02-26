@@ -23,6 +23,7 @@ const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('browse');
     const [students, setStudents] = useState([]);
     const [courses, setCourses] = useState([]);
+    const [faculty, setFaculty] = useState([]);
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [enrollments, setEnrollments] = useState([]);
     const [reports, setReports] = useState(null);
@@ -59,6 +60,7 @@ const Dashboard = () => {
 
         if (persona === 'admin') {
             tasks.push(fetchReports());
+            tasks.push(fetchFaculty());
             setActiveTab('reports');
         }
 
@@ -88,8 +90,21 @@ const Dashboard = () => {
 
     const fetchCourses = async () => {
         try {
-            const res = await api.get(API_BASE_COURSE);
+            const endpoint = persona === 'faculty' ? `${API_BASE_COURSE}/my` : API_BASE_COURSE;
+            const res = await api.get(endpoint);
             setCourses(res.data);
+        } catch (e) {
+            console.error(e);
+            if (persona === 'faculty') {
+                setMessage({ type: 'error', text: 'Failed to load your courses.' });
+            }
+        }
+    };
+
+    const fetchFaculty = async () => {
+        try {
+            const res = await api.get("/users/faculty");
+            setFaculty(res.data);
         } catch (e) { console.error(e); }
     };
 
@@ -102,6 +117,10 @@ const Dashboard = () => {
             setEnrollments(enrollRes.data);
             setSelectedStudent(prev => ({ ...prev, ...progressRes.data }));
         } catch (e) { console.error(e); }
+    };
+
+    const isEnrolled = (courseCode) => {
+        return enrollments.some(e => e.courseCode === courseCode && e.status !== 'CANCELLED');
     };
 
     const handleSearch = async (e) => {
@@ -160,12 +179,19 @@ const Dashboard = () => {
         description: '',
         department: '',
         instructorName: '',
+        instructorUsername: '',
         capacity: 30,
         currentEnrollment: 0,
         dayOfWeek: 'MONDAY',
         startTime: '09:00',
         endTime: '11:00'
     });
+
+    const [showFacultyForm, setShowFacultyForm] = useState(false);
+    const [editingFaculty, setEditingFaculty] = useState(null);
+    const [facultyForm, setFacultyForm] = useState({ username: '' });
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [assignTarget, setAssignTarget] = useState(null);
 
     const handleCourseFormChange = (e) => {
         const { name, value } = e.target;
@@ -222,6 +248,43 @@ const Dashboard = () => {
                 setMessage({ type: 'error', text: 'Failed to delete course' });
             }
         }
+    };
+
+    const handleSaveFaculty = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingFaculty) {
+                await api.put(`/users/faculty/${editingFaculty.id}`, facultyForm);
+                setMessage({ type: 'success', text: 'Faculty updated' });
+            } else {
+                await api.post("/users/faculty", facultyForm);
+                setMessage({ type: 'success', text: 'Faculty created (Default password: faculty123)' });
+            }
+            setShowFacultyForm(false);
+            setEditingFaculty(null);
+            setFacultyForm({ username: '' });
+            fetchFaculty();
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Action failed' });
+        }
+    };
+
+    const handleToggleFacultyStatus = async (id) => {
+        try {
+            await api.patch(`/users/faculty/${id}/status`);
+            setMessage({ type: 'success', text: 'Status updated' });
+            fetchFaculty();
+        } catch (error) { console.error(error); }
+    };
+
+    const handleAssignCourse = async (courseId, facultyMember) => {
+        try {
+            const course = courses.find(c => c.id === courseId);
+            const update = { ...course, instructorUsername: facultyMember.username, instructorName: facultyMember.username }; // Using username as name for simplicity if name not available
+            await api.put(`${API_BASE_COURSE}/${courseId}`, update);
+            setMessage({ type: 'success', text: 'Course assigned' });
+            fetchCourses();
+        } catch (error) { console.error(error); }
     };
 
     if (!user) return null;
@@ -283,7 +346,18 @@ const Dashboard = () => {
                                                 <div className="flex flex-col">
                                                     <span className={`text-sm font-bold ${course.currentEnrollment >= course.capacity ? 'text-rose-500' : 'text-emerald-600'}`}>{course.currentEnrollment} / {course.capacity} seats taken</span>
                                                 </div>
-                                                <button onClick={() => handleEnroll(course.courseCode)} className={`px-6 py-4 rounded-2xl font-bold transition-all shadow-md ${course.currentEnrollment >= course.capacity ? 'bg-amber-500 text-white' : 'bg-blue-600 text-white'}`}>{course.currentEnrollment >= course.capacity ? 'Waitlist' : 'Enroll Now'}</button>
+                                                <button
+                                                    onClick={() => handleEnroll(course.courseCode)}
+                                                    disabled={isEnrolled(course.courseCode)}
+                                                    className={`px-6 py-4 rounded-2xl font-bold transition-all shadow-md ${isEnrolled(course.courseCode)
+                                                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                                        : course.currentEnrollment >= course.capacity
+                                                            ? 'bg-amber-500 text-white'
+                                                            : 'bg-blue-600 text-white'
+                                                        }`}
+                                                >
+                                                    {isEnrolled(course.courseCode) ? 'Enrolled' : course.currentEnrollment >= course.capacity ? 'Waitlist' : 'Enroll Now'}
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -295,17 +369,25 @@ const Dashboard = () => {
                             <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-sm">
                                 <h2 className="text-3xl font-black mb-10 text-slate-900">Current Schedule</h2>
                                 <div className="space-y-6">
-                                    {enrollments.filter(e => e.status !== 'CANCELLED').map(e => (
-                                        <div key={e.courseCode} className="flex justify-between items-center p-6 bg-slate-50 border border-slate-100 rounded-3xl">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-3 h-3 rounded-full ${e.status === 'WAITLISTED' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></div>
-                                                <div>
-                                                    <p className="font-black text-lg text-slate-900">{e.courseCode} <span className="text-xs text-slate-400">({e.status})</span></p>
+                                    {enrollments.filter(e => e.status !== 'CANCELLED').map(e => {
+                                        const details = courses.find(c => c.courseCode === e.courseCode);
+                                        return (
+                                            <div key={e.courseCode} className="flex justify-between items-center p-6 bg-slate-50 border border-slate-100 rounded-3xl">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-3 h-3 rounded-full ${e.status === 'WAITLISTED' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></div>
+                                                    <div>
+                                                        <p className="font-black text-lg text-slate-900">{e.courseCode} <span className="text-xs text-slate-400">({e.status})</span></p>
+                                                        {details && (
+                                                            <p className="text-xs font-bold text-slate-500 mt-1">
+                                                                🗓️ {details.dayOfWeek} • 🕒 {details.startTime} - {details.endTime}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
+                                                <button onClick={() => handleDrop(e.courseCode)} className="bg-rose-50 text-rose-600 px-4 py-2 rounded-xl font-bold">Drop</button>
                                             </div>
-                                            <button onClick={() => handleDrop(e.courseCode)} className="bg-rose-50 text-rose-600 px-4 py-2 rounded-xl font-bold">Drop</button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </section>
                             <section className="bg-indigo-900 rounded-[2.5rem] p-10 text-white shadow-xl">
@@ -359,7 +441,8 @@ const Dashboard = () => {
                         <div className="flex gap-4">
                             <button onClick={() => setActiveTab('reports')} className={`px-6 py-2 rounded-full font-bold text-sm ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Reports</button>
                             <button onClick={() => setActiveTab('course-mgmt')} className={`px-6 py-2 rounded-full font-bold text-sm ${activeTab === 'course-mgmt' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Courses</button>
-                            <button onClick={() => setActiveTab('user-mgmt')} className={`px-6 py-2 rounded-full font-bold text-sm ${activeTab === 'user-mgmt' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Users</button>
+                            <button onClick={() => setActiveTab('faculty-mgmt')} className={`px-6 py-2 rounded-full font-bold text-sm ${activeTab === 'faculty-mgmt' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Faculty</button>
+                            <button onClick={() => setActiveTab('user-mgmt')} className={`px-6 py-2 rounded-full font-bold text-sm ${activeTab === 'user-mgmt' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Students</button>
                         </div>
                         {activeTab === 'reports' && reports && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -451,6 +534,53 @@ const Dashboard = () => {
                                 </div>
                             </section>
                         )}
+                        {activeTab === 'faculty-mgmt' && (
+                            <section className="bg-white border p-10 rounded-[2.5rem] shadow-sm">
+                                <div className="flex justify-between items-center mb-10">
+                                    <h2 className="text-3xl font-black">Faculty Management</h2>
+                                    <button
+                                        onClick={() => { setEditingFaculty(null); setFacultyForm({ username: '' }); setShowFacultyForm(true); }}
+                                        className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg"
+                                    >
+                                        + Add Faculty
+                                    </button>
+                                </div>
+
+                                {showFacultyForm && (
+                                    <form onSubmit={handleSaveFaculty} className="mb-12 p-8 bg-slate-50 border border-slate-200 rounded-[2rem] grid grid-cols-1 gap-6 relative">
+                                        <button type="button" onClick={() => setShowFacultyForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold">×</button>
+                                        <h3 className="font-black text-xl mb-4">{editingFaculty ? 'Edit Faculty' : 'Register Faculty'}</h3>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase">Username</label>
+                                            <input required value={facultyForm.username} onChange={e => setFacultyForm({ username: e.target.value })} className="p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. john.d" />
+                                        </div>
+                                        <button type="submit" className="bg-slate-900 text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm">{editingFaculty ? 'Save Changes' : 'Create Account'}</button>
+                                    </form>
+                                )}
+
+                                <div className="space-y-4">
+                                    {faculty.map(f => (
+                                        <div key={f.id} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl flex justify-between items-center">
+                                            <div>
+                                                <p className="font-black text-slate-900 text-lg">{f.username}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${f.active ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                                                        {f.active ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setAssignTarget(f); setShowAssignModal(true); }} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs">Assign Courses</button>
+                                                <button onClick={() => { setEditingFaculty(f); setFacultyForm({ username: f.username }); setShowFacultyForm(true); }} className="px-4 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs">Edit</button>
+                                                <button onClick={() => handleToggleFacultyStatus(f.id)} className={`px-4 py-2 rounded-xl font-bold text-xs ${f.active ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                    {f.active ? 'Deactivate' : 'Activate'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
                         {activeTab === 'user-mgmt' && (
                             <section className="bg-white border p-10 rounded-[2.5rem] shadow-sm">
                                 <h2 className="text-3xl font-black mb-10">Registered Students</h2>
@@ -470,6 +600,39 @@ const Dashboard = () => {
                     </div>
                 )}
             </main>
+
+            {showAssignModal && assignTarget && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+                    <div className="bg-white w-full max-w-xl rounded-[3rem] p-10 shadow-2xl relative">
+                        <button onClick={() => setShowAssignModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 text-3xl px-2">×</button>
+                        <h2 className="text-3xl font-black text-slate-900 mb-2">Assign Courses</h2>
+                        <p className="text-slate-500 mb-8">Assign courses to <span className="text-blue-600 font-bold">{assignTarget.username}</span></p>
+
+                        <div className="max-h-[400px] overflow-y-auto pr-4 space-y-3 custom-scrollbar">
+                            {courses.map(course => (
+                                <div key={course.courseCode} className="flex justify-between items-center p-5 bg-slate-50 border border-slate-100 rounded-2xl group hover:border-blue-200 transition-all">
+                                    <div>
+                                        <p className="font-black text-slate-900 uppercase">{course.courseCode}</p>
+                                        <p className="text-sm text-slate-500">{course.courseName}</p>
+                                        {course.instructorUsername === assignTarget.username && <span className="text-[10px] font-black text-emerald-600 mt-1 block">✓ Currently Assigned</span>}
+                                    </div>
+                                    <button
+                                        disabled={course.instructorUsername === assignTarget.username}
+                                        onClick={() => handleAssignCourse(course.id, assignTarget)}
+                                        className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${course.instructorUsername === assignTarget.username
+                                            ? 'bg-emerald-100 text-emerald-600 cursor-default'
+                                            : 'bg-slate-900 text-white hover:bg-slate-800'
+                                            }`}
+                                    >
+                                        {course.instructorUsername === assignTarget.username ? 'Assigned' : 'Assign'}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        <button onClick={() => setShowAssignModal(false)} className="w-full mt-8 bg-slate-100 text-slate-900 py-4 rounded-2xl font-black text-sm uppercase tracking-widest">Done</button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
